@@ -1,59 +1,90 @@
--- -- Questin one
+CREATE DATABASE IF NOT EXISTS purchase;
+USE purchase;
+-- Question 1: Normalize the ProductDetail table to 1NF
 
--- Create a new table to store the normalized data
+-- Create the original ProductDetail table
+CREATE TABLE IF NOT EXISTS ProductDetail (
+    Order_ID INT,
+    CustomerName VARCHAR(100),
+    Products VARCHAR(255)
+);
+
+-- Insert sample data
+INSERT INTO ProductDetail (Order_ID, CustomerName, Products) VALUES
+(101, 'John Doe', 'Laptop, Mouse'),
+(102, 'Jane Smith', 'Tablet, Keyboard, Mouse'),
+(103, 'Emily Clark', 'Phone');
+
+-- Create the normalized table
 CREATE TABLE ProductDetail_1NF (
     Order_ID INT,
     CustomerName VARCHAR(100),
     Product VARCHAR(100)
 );
 
--- Insert normalized data into the new table
+-- Insert normalized data using MySQL string functions
 INSERT INTO ProductDetail_1NF (Order_ID, CustomerName, Product)
 SELECT 
     Order_ID,
     CustomerName,
-    TRIM(value) AS Product
+    TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(Products, ','), ',', numbers.n), ',', -1)) AS Product
 FROM 
     ProductDetail
-CROSS APPLY STRING_SPLIT(Products, ',');
+JOIN
+    (
+        SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL 
+        SELECT 4 UNION ALL SELECT 5  -- Add more numbers if needed for more products
+    ) numbers
+ON 
+    CHAR_LENGTH(Products) - CHAR_LENGTH(REPLACE(Products, ',', '')) >= numbers.n - 1
+HAVING Product != '';
 
--- Query the normalized table to verify the result
-SELECT * FROM ProductDetail_1NF;
+-- View the normalized results
+SELECT * FROM ProductDetail_1NF ORDER BY Order_ID;
 
--- Question two
+-- Question 2: Normalize the OrderDetails table to 2NF
+-- Create the original OrderDetails table (1NF)
+CREATE TABLE IF NOT EXISTS OrderDetails_1NF (
+    OrderID INT,
+    CustomerName VARCHAR(100),
+    Product VARCHAR(100),
+    Quantity INT
+);
 
--- Create a table for orders (OrderID and CustomerName)
+-- Insert sample data
+INSERT INTO OrderDetails_1NF (OrderID, CustomerName, Product, Quantity) VALUES
+(101, 'John Doe', 'Laptop', 2),
+(101, 'John Doe', 'Mouse', 1),
+(102, 'Jane Smith', 'Tablet', 3),
+(102, 'Jane Smith', 'Keyboard', 1),
+(102, 'Jane Smith', 'Mouse', 2),
+(103, 'Emily Clark', 'Phone', 1);
+
+-- Create Orders table (contains OrderID and CustomerName)
 CREATE TABLE Orders (
-    Order_ID INT PRIMARY KEY,
+    OrderID INT PRIMARY KEY,
     CustomerName VARCHAR(100)
 );
 
--- Create a table for order details (OrderID, Product, and Quantity)
+-- Create OrderDetails table (contains OrderID, Product, and Quantity)
 CREATE TABLE OrderDetails_2NF (
     OrderID INT,
     Product VARCHAR(100),
     Quantity INT,
-    PRIMARY KEY (Order_ID, Product),
-    FOREIGN KEY (Order_ID) REFERENCES Orders(Order_ID)
+    PRIMARY KEY (OrderID, Product),
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID)
 );
 
--- Insert data into the Orders table
-INSERT INTO Orders (Order_ID, CustomerName)
-VALUES
-(101, 'John Doe'),
-(102, 'Jane Smith'),
-(103, 'Emily Clark');
+-- Insert data into Orders table (removing duplicates)
+INSERT INTO Orders (OrderID, CustomerName)
+SELECT DISTINCT OrderID, CustomerName
+FROM OrderDetails_1NF;
 
--- Insert data into the OrderDetails_2NF table
+-- Insert data into OrderDetails_2NF table
 INSERT INTO OrderDetails_2NF (OrderID, Product, Quantity)
-VALUES
-(101, 'Laptop', 2),
-(101, 'Mouse', 1),
-(102, 'Tablet', 3),
-(102, 'Keyboard', 1),
-(102, 'Mouse', 2),
-(103, 'Phone', 1);
+SELECT OrderID, Product, Quantity
+FROM OrderDetails_1NF;
 
--- Query the normalized tables to verify the result
-SELECT * FROM Orders;
-SELECT * FROM OrderDetails_2NF;
+-- View the normalized results
+SELECT * FROM Orders ORDER BY OrderID;
+SELECT * FROM OrderDetails_2NF ORDER BY OrderID, Product;
